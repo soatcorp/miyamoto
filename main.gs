@@ -89,8 +89,9 @@ loadDateUtils = function () {
     var matches = str.match(reg);
     if(matches) {
       var year = parseInt(matches[2], 10);
-      var month = parseInt(matches[3], 10);
-      var day = parseInt(matches[4], 10);
+      var month = parseInt(matches[3].replace(/^0/, ''), 10);
+      var day = parseInt(matches[4].replace(/^0/, ''), 10);
+
       if(_.isNaN(year) || year < 1970) {
         //
         if((now().getMonth() + 1) >= 11 && month <= 2) {
@@ -260,25 +261,25 @@ if(typeof(console) == 'undefined' && typeof(Logger) != 'undefined') {
 }
 
 // サーバに新しいバージョンが無いかチェックする
-checkUpdate = function(responder) {
-  if(typeof GASProperties === 'undefined') GASProperties = loadGASProperties();
-  var current_version = parseFloat(new GASProperties().get('version')) || 0;
+// checkUpdate = function(responder) {
+//   if(typeof GASProperties === 'undefined') GASProperties = loadGASProperties();
+//   var current_version = parseFloat(new GASProperties().get('version')) || 0;
 
-  var response = UrlFetchApp.fetch("https://raw.githubusercontent.com/masuidrive/miyamoto/master/VERSION", {muteHttpExceptions: true});
+//   var response = UrlFetchApp.fetch("https://raw.githubusercontent.com/masuidrive/miyamoto/master/VERSION", {muteHttpExceptions: true});
 
-  if(response.getResponseCode() == 200) {
-    var latest_version = parseFloat(response.getContentText());
-    if(latest_version > 0 && latest_version > current_version) {
-      responder.send("最新のみやもとさんの準備ができました！\nhttps://github.com/masuidrive/miyamoto/blob/master/UPDATE.md を読んでください。");
+//   if(response.getResponseCode() == 200) {
+//     var latest_version = parseFloat(response.getContentText());
+//     if(latest_version > 0 && latest_version > current_version) {
+//       responder.send("最新のみやもとさんの準備ができました！\nhttps://github.com/masuidrive/miyamoto/blob/master/UPDATE.md を読んでください。");
 
-      var response = UrlFetchApp.fetch("https://raw.githubusercontent.com/masuidrive/miyamoto/master/HISTORY.md", {muteHttpExceptions: true});
-      if(response.getResponseCode() == 200) {
-        var text = String(response.getContentText()).replace(new RegExp("## "+current_version+"[\\s\\S]*", "m"), '');
-        responder.send(text);
-      }
-    }
-  }
-};
+//       var response = UrlFetchApp.fetch("https://raw.githubusercontent.com/masuidrive/miyamoto/master/HISTORY.md", {muteHttpExceptions: true});
+//       if(response.getResponseCode() == 200) {
+//         var text = String(response.getContentText()).replace(new RegExp("## "+current_version+"[\\s\\S]*", "m"), '');
+//         responder.send(text);
+//       }
+//     }
+//   }
+// };
 // KVS
 
 loadGSProperties = function (exports) {
@@ -364,7 +365,7 @@ loadGSTemplate = function() {
             "出勤中", "出勤なし", "休暇中", "休暇なし", "出勤確認", "退勤確認"
           ],
           [
-            "<@#1> おはようございます (#2)", "<@#1> 出勤時間を#2へ変更しました",
+            "<@#1> おはようございます. (#2)", "<@#1> 出勤時間を#2へ変更しまし.た.",
             "<@#1> お疲れ様でした (#2)", "<@#1> 退勤時間を#2へ変更しました",
             "<@#1> #2を休暇として登録しました", "<@#1> #2の休暇を取り消しました",
             "#1が出勤しています", "全員退勤しています",
@@ -593,7 +594,7 @@ function setUp() {
   if(!global_settings.get('spreadsheet')) {
 
     // タイムシートを作る
-    var spreadsheet = SpreadsheetApp.create("Slack Timesheets");
+    var spreadsheet = SpreadsheetApp.create("dev Slack Timesheets");
     var sheets = spreadsheet.getSheets();
     if(sheets.length == 1 && sheets[0].getLastRow() == 0) {
       sheets[0].setName('_設定');
@@ -609,13 +610,28 @@ function setUp() {
     settings.setNote('無視するユーザ', '反応をしないユーザを,区切りで設定する。botは必ず指定してください。');
 
     // 休日を設定 (iCal)
-    var calendarId = 'ja.japanese#holiday@group.v.calendar.google.com';
-    var calendar = CalendarApp.getCalendarById(calendarId);
-    var startDate = DateUtils.now();
-    var endDate = new Date(startDate.getFullYear() + 1, startDate.getMonth());
-    var holidays = _.map(calendar.getEvents(startDate, endDate), function(ev) {
-      return DateUtils.format("Y-m-d", ev.getAllDayStartDate());
-    });
+    // var calendarId = 'ja.japanese#holiday@group.v.calendar.google.com';
+    // var calendar = CalendarApp.getCalendarById(calendarId);
+    // var startDate = DateUtils.now();
+    // var endDate = new Date(startDate.getFullYear() + 1, startDate.getMonth());
+    // var holidays = _.map(calendar.getEvents(startDate, endDate), function(ev) {
+    //   return DateUtils.format("Y-m-d", ev.getAllDayStartDate());
+    // });
+
+
+var url = 'https://www.googleapis.com/calendar/v3/calendars/outid3el0qkcrsuf89fltf7a4qbacgt9@import.calendar.google.com/events?key=AIzaSyDZFEziRX0EzFozruI9TOMHn4Ycvedyt9s"&timeMin=2016-01-01T00:00:00Z&timeMax=2016-12-31T00:00:00Z&maxResults=100&orderBy=startTime&singleEvents=true';
+var data = JSON.parse(UrlFetchApp.fetch(url).getContentText());
+var holidays = _.map(data.items, function(e) {
+  return e['start']['date'];
+});
+var calendarId = 'ja.japanese#holiday@group.v.calendar.google.com';
+var calendar = CalendarApp.getCalendarById(calendarId);
+var startDate = DateUtils.now();
+var endDate = new Date(startDate.getFullYear() + 1, startDate.getMonth());
+
+
+
+    
     settings.set('休日', holidays.join(', '));
     settings.setNote('休日', '日付を,区切りで。来年までは自動設定されているので、以後は適当に更新してください');
 
@@ -745,7 +761,7 @@ loadTimesheets = function (exports) {
       ['actionWhoIsIn', /(だれ|誰|who\s*is)/],
       ['actionCancelOff', /(休|やす(ま|み|む)|休暇).*(キャンセル|消|止|やめ|ません)/],
       ['actionOff', /(休|やす(ま|み|む)|休暇)/],
-      ['actionSignIn', /(モ[ー〜]+ニン|も[ー〜]+にん|おっは|おは|へろ|はろ|ヘロ|ハロ|hi|hello|morning|出勤)/],
+      ['actionSignIn', /(モ[ー〜]+ニン|も[ー〜]+にん|おっは|おは|へろ|はろ|ヘロ|ハロ|hi||Hi|hello|morning|出勤)/],
       ['confirmSignIn', /__confirmSignIn__/],
       ['confirmSignOut', /__confirmSignOut__/],
     ];
