@@ -260,28 +260,6 @@ if(typeof(console) == 'undefined' && typeof(Logger) != 'undefined') {
   }
 }
 
-// サーバに新しいバージョンが無いかチェックする
-// checkUpdate = function(responder) {
-//   if(typeof GASProperties === 'undefined') GASProperties = loadGASProperties();
-//   var current_version = parseFloat(new GASProperties().get('version')) || 0;
-
-//   var response = UrlFetchApp.fetch("https://raw.githubusercontent.com/masuidrive/miyamoto/master/VERSION", {muteHttpExceptions: true});
-
-//   if(response.getResponseCode() == 200) {
-//     var latest_version = parseFloat(response.getContentText());
-//     if(latest_version > 0 && latest_version > current_version) {
-//       responder.send("最新のみやもとさんの準備ができました！\nhttps://github.com/masuidrive/miyamoto/blob/master/UPDATE.md を読んでください。");
-
-//       var response = UrlFetchApp.fetch("https://raw.githubusercontent.com/masuidrive/miyamoto/master/HISTORY.md", {muteHttpExceptions: true});
-//       if(response.getResponseCode() == 200) {
-//         var text = String(response.getContentText()).replace(new RegExp("## "+current_version+"[\\s\\S]*", "m"), '');
-//         responder.send(text);
-//       }
-//     }
-//   }
-// };
-// KVS
-
 loadGSProperties = function (exports) {
   var GSProperties = function(spreadsheet) {
     // 初期設定
@@ -520,12 +498,6 @@ loadGSTimesheets = function () {
     });
   };
 
-  // 休みの曜日を数字で返す
-  GSTimesheets.prototype.getDayOff = function(username) {
-    var sheet = this._getSheet(username);
-    return DateUtils.parseWday(sheet.getRange("B2").getValue());
-  };
-
   return GSTimesheets;
 };
 
@@ -637,33 +609,8 @@ var endDate = new Date(startDate.getFullYear() + 1, startDate.getMonth());
 
     // メッセージ用のシートを作成
     new GSTemplate(spreadsheet);
-
-    // 毎日11時頃に出勤してるかチェックする
-    ScriptApp.newTrigger('confirmSignIn')
-      .timeBased()
-      .everyDays(1)
-      .atHour(11)
-      .create();
-
-    // 毎日22時頃に退勤してるかチェックする
-    ScriptApp.newTrigger('confirmSignOut')
-      .timeBased()
-      .everyDays(1)
-      .atHour(22)
-      .create();
   }
 };
-
-/* バージョンアップ処理を行う */
-function migrate() {
-  if(typeof GASProperties === 'undefined') GASProperties = loadGASProperties();
-
-  var global_settings = new GASProperties();
-  global_settings.set('version', "20141027.0");
-  console.log("バージョンアップが完了しました。");
-}
-
-
 
 /*
 function test1(e) {
@@ -813,30 +760,6 @@ loadTimesheets = function (exports) {
     }
   };
 
-  // 休暇申請
-  Timesheets.prototype.actionOff = function(username, message) {
-    if(this.date) {
-      var dateObj = new Date(this.date[0], this.date[1]-1, this.date[2]);
-      var data = this.storage.get(username, dateObj);
-      if(!data.signOut || data.signOut === '-') {
-        this.storage.set(username, dateObj, {signIn: '-', signOut: '-', note: message});
-        this.responder.template("休暇", username, DateUtils.format("Y/m/d", dateObj));
-      }
-    }
-  };
-
-  // 休暇取消
-  Timesheets.prototype.actionCancelOff = function(username, message) {
-    if(this.date) {
-      var dateObj = new Date(this.date[0], this.date[1]-1, this.date[2]);
-      var data = this.storage.get(username, dateObj);
-      if(!data.signOut || data.signOut === '-') {
-        this.storage.set(username, dateObj, {signIn: null, signOut: null, note: message});
-        this.responder.template("休暇取消", username, DateUtils.format("Y/m/d", dateObj));
-      }
-    }
-  };
-
   // 出勤中
   Timesheets.prototype.actionWhoIsIn = function(username, message) {
     var dateObj = DateUtils.toDate(DateUtils.now());
@@ -849,72 +772,6 @@ loadTimesheets = function (exports) {
     }
     else {
       this.responder.template("出勤中", result.sort().join(', '));
-    }
-  };
-
-  // 休暇中
-  Timesheets.prototype.actionWhoIsOff = function(username, message) {
-    var dateObj = DateUtils.toDate(DateUtils.now());
-    var dateStr = DateUtils.format("Y/m/d", dateObj);
-    var result = _.compact(_.map(this.storage.getByDate(dateObj), function(row){
-      return row.signIn === '-' ? row.user : undefined;
-    }));
-
-    // 定休の処理
-    var wday = dateObj.getDay();
-    var self = this;
-    _.each(this.storage.getUsers(), function(username) {
-      if(_.contains(self.storage.getDayOff(username), wday)) {
-        result.push(username);
-      }
-    });
-    result = _.uniq(result);
-
-    if(_.isEmpty(result)) {
-      this.responder.template("休暇なし", dateStr);
-    }
-    else {
-      this.responder.template("休暇中", dateStr, result.sort().join(', '));
-    }
-  };
-
-  // 出勤していない人にメッセージを送る
-  Timesheets.prototype.confirmSignIn = function(username, message) {
-    var self = this;
-    var holidays = _.compact(_.map((this.settings.get("休日") || "").split(','), function(s) {
-      var date = DateUtils.parseDateTime(s);
-      return date ? DateUtils.format("Y/m/d", date) : undefined;
-    }));
-    var today = DateUtils.toDate(DateUtils.now());
-
-    // 休日ならチェックしない
-    if(_.contains(holidays, DateUtils.format("Y/m/d",today))) return;
-
-    var wday = DateUtils.now().getDay();
-    var signedInUsers = _.compact(_.map(this.storage.getByDate(today), function(row) {
-      var signedIn = _.isDate(row.signIn);
-      var off = (row.signIn === '-') || _.contains(self.storage.getDayOff(row.user), wday);
-      return (signedIn || off) ? row.user : undefined;
-    }));
-    var users = _.difference(this.storage.getUsers(), signedInUsers);
-
-    if(!_.isEmpty(users)) {
-      this.responder.template("出勤確認", users.sort());
-    }
-
-    // バージョンチェックを行う
-    if(typeof checkUpdate == 'function') checkUpdate(this.responder);
-  };
-
-  // 退勤していない人にメッセージを送る
-  Timesheets.prototype.confirmSignOut = function(username, message) {
-    var dateObj = DateUtils.toDate(DateUtils.now());
-    var users = _.compact(_.map(this.storage.getByDate(dateObj), function(row) {
-      return _.isDate(row.signIn) && !_.isDate(row.signOut) ? row.user : undefined;
-    }));
-
-    if(!_.isEmpty(users)) {
-      this.responder.template("退勤確認", users.sort());
     }
   };
 
